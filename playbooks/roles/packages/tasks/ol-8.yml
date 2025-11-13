@@ -1,0 +1,65 @@
+---
+- name: Enable ol8_developer_EPEL repo
+  shell: yum-config-manager --enable ol8_developer_EPEL
+
+- name: Enable required Oracle Linux 8 repos for UEK R7 and RDMA tools
+  become: true
+  shell: |
+    dnf -y config-manager --set-enabled ol8_baseos_latest || true
+    dnf -y config-manager --set-enabled ol8_appstream || true
+    dnf -y config-manager --set-enabled ol8_addons || true
+    dnf -y config-manager --set-enabled ol8_UEKR7 || true
+  args:
+    warn: false
+  when: cluster_network | bool
+
+- name: Make sure python OpenSSL and parallel ssh is installed
+  vars: 
+    package_name:
+      #- pyOpenSSL
+      #- python2-cryptography
+      - python3-oci-cli
+      - pssh
+      - pdsh
+      - python3-pip
+    package_state: latest
+    package_repo: "ol8_developer_EPEL"
+  include_role: 
+    name: safe_yum
+  ignore_errors: true
+
+
+- name: Upgrade Pip3
+  become: true
+  pip:
+    name: [pip]
+    state: latest
+    executable: pip3
+  ignore_errors: yes
+  
+- name: install oci-cli latest version
+  become: true
+  pip:
+    name: [oci-cli]
+    state: latest
+    executable: pip3
+  ignore_errors: yes
+  when: ('controller' in group_names)
+
+
+- name: Install RDMA and InfiniBand benchmarking tools (OL8)
+  vars:
+    package_name:
+      - rdma-core
+      - libibverbs
+      - libibverbs-utils
+      - librdmacm-utils
+      - infiniband-diags
+      - perftest
+      - mstflint
+    package_state: present
+  include_role:
+    name: safe_yum
+  ignore_errors: true
+  when: ('compute' in group_names) and (cluster_network | bool)
+

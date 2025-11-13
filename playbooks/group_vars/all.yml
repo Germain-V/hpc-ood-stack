@@ -1,0 +1,8 @@
+ssl_cert_path: '/etc/ssl/certs'
+ssl_ca_cert: '{{ ssl_cert_path }}/cluster-ca.crt'
+ssl_cert_group: ssl
+
+# Override Grafana admin credentials used by the grafana role
+grafana_security:
+  admin_user: admin
+  admin_password: "{{ admin_password }}"

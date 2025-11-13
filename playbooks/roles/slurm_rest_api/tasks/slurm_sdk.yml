@@ -1,0 +1,167 @@
+---
+- name: Ensure Java is installed (RedHat)
+  become: true
+  package:
+    name: java-17-openjdk
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Ensure Java is installed (Debian)
+  become: true
+  apt:
+    name: openjdk-17-jre-headless
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Generate JWT token
+  command: "scontrol token lifespan=31556926"
+  become_user: "{{ slurm_user }}"
+  register: jwt_token_result
+
+- name: Save JWT token to file
+  copy:
+    content: "{{ jwt_token_result.stdout }}"
+    dest: "{{ slurm_jwt_token_path }}"
+    owner: "{{ slurm_user }}"
+    group: "{{ slurm_group }}"
+    mode: "0600"
+  become: true
+
+- name: Read JWT token from file
+  slurp:
+    src: "{{ slurm_jwt_token_path }}"
+  register: jwt_token_file
+  become: true
+
+- name: Set JWT token fact
+  set_fact:
+    slurm_jwt_token: "{{ (jwt_token_file.content | b64decode).split('=')[1] }}"
+
+- name: Create sdk output directory
+  ansible.builtin.file:
+    path: "{{ openapi_download_path }}"
+    state: directory
+
+- name: Detect Java 17 binary path (RedHat)
+  shell: "ls -d /usr/lib/jvm/java-17-openjdk*/bin/java 2>/dev/null | head -n1"
+  register: java17_path_rh
+  changed_when: false
+  when: ansible_os_family == "RedHat"
+
+- name: Detect Java 17 binary path (Debian)
+  shell: "ls -d /usr/lib/jvm/java-17-openjdk*/bin/java /usr/lib/jvm/java-17-openjdk-amd64/bin/java 2>/dev/null | head -n1"
+  register: java17_path_deb
+  changed_when: false
+  when: ansible_os_family == "Debian"
+
+- name: Set java_bin fact
+  set_fact:
+    java_bin: "{{ (java17_path_rh.stdout | default('')) or (java17_path_deb.stdout | default('')) or '/usr/bin/java' }}"
+
+- name: Download OpenAPI generator JAR {{ openapi_generator_jar_version }}
+  become: true
+  get_url:
+    url: "https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/{{ openapi_generator_jar_version }}/openapi-generator-cli-{{ openapi_generator_jar_version }}.jar"
+    dest: "{{ openapi_download_path }}/openapi-generator.jar"
+    mode: '0644'
+
+- name: Download Slurm OpenAPI spec
+  uri:
+    url: "{{ slurm_rest_api_spec_url }}"
+    dest: "{{ openapi_download_path }}/{{ slurm_rest_api_spec_filename }}"
+    headers:
+      X-SLURM-USER-NAME: "{{ slurm_user }}"
+      X-SLURM-USER-TOKEN: "{{ slurm_jwt_token }}"
+  become: true
+
+- name: Create SDK output directory
+  file:
+    path: "{{ sdk_output_dir }}"
+    state: directory
+
+- name: Generate Slurm python-pydantic SDK
+  shell: |
+    {{ java_bin | default('/usr/bin/java') }} -jar {{ openapi_download_path }}/openapi-generator.jar generate \
+      -g python \
+      -i {{ openapi_download_path }}/{{ slurm_rest_api_spec_filename }} \
+      -o {{ sdk_output_dir }}/ 
+  args:
+    chdir: "{{ sdk_output_dir }}"
+
+- name: Install wheel package (Debian)
+  become: true
+  shell: |
+    /usr/bin/python3.10 -m pip install wheel
+  when: ansible_os_family == "Debian"
+
+- name: Upgrade Packaging Library
+  shell: |
+    pip install --upgrade packaging==25.0
+  when: ansible_os_family == "Debian"
+
+- name: Build slurm sdk python wheel
+  shell: |
+    /usr/bin/python3.10 setup.py bdist_wheel
+  args:
+    chdir: "{{ sdk_output_dir }}"
+    executable: /bin/bash
+  when: ansible_os_family == "Debian"
+
+- name: Install slurm sdk the python wheel
+  become: true
+  shell: |
+    /usr/bin/python3.10 -m pip install --upgrade pip
+    /usr/bin/python3.10 -m pip install pydantic>=2
+    /usr/bin/python3.10 -m pip install openapi_client
+    /usr/bin/python3.10 -m pip install --force-reinstall --upgrade dist/*.whl
+  args:
+    chdir: "{{ sdk_output_dir }}"
+    executable: /bin/bash
+  when: ansible_os_family == "Debian"
+
+- name: Build python wheel
+  become: true
+  shell: |
+    /usr/bin/pip3.8 install wheel
+    /usr/bin/python3.8 setup.py bdist_wheel
+  args:
+    chdir: "{{ sdk_output_dir }}"
+    executable: /bin/bash
+  when: ansible_os_family == "RedHat"
+
+- name: Install the python wheel
+  become: true
+  shell: |
+    /usr/bin/python3.8 -m pip install --upgrade pip
+    /usr/bin/python3.8 -m pip install pydantic>=2
+    /usr/bin/python3.8 -m pip install openapi_client
+    /usr/bin/python3.8 -m pip install --force-reinstall --upgrade dist/*.whl
+  args:
+    chdir: "{{ sdk_output_dir }}"
+    executable: /bin/bash
+  when: ansible_os_family == "RedHat"
+
+- name: Install test requirements (ubuntu)
+  pip:
+    requirements: "{{ sdk_output_dir }}/test-requirements.txt"
+    executable: /usr/bin/pip3.10
+    state: present
+  when: >
+    ansible_stat.stat.exists is defined and
+    ansible_stat.stat.exists == True and
+    ansible_os_family == "Debian"
+  vars:
+    ansible_stat: "{{ lookup('file', sdk_output_dir + '/test-requirements.txt', errors='ignore') }}"
+
+- name: Install test requirements
+  pip:
+    requirements: "{{ sdk_output_dir }}/test-requirements.txt"
+    executable: /usr/bin/pip3.8
+    state: present
+  when: >
+    ansible_stat.stat.exists is defined and
+    ansible_stat.stat.exists == True and
+    ansible_os_family == "RedHat"
+  vars:
+    ansible_stat: "{{ lookup('file', sdk_output_dir + '/test-requirements.txt', errors='ignore') }}"

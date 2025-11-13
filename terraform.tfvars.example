@@ -1,0 +1,103 @@
+# =============================================================================
+# HPC OOD Stack - Required Variables Configuration
+# =============================================================================
+# This file contains all variables that do not have default values and must be
+# provided for the Terraform configuration to work.
+#
+# Copy this file to terraform.tfvars and fill in your actual values.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# OCI Authentication & Basic Configuration
+# -----------------------------------------------------------------------------
+# Your OCI region (e.g., "us-ashburn-1", "us-phoenix-1", "eu-frankfurt-1")
+region = ""
+
+# Your OCI tenancy OCID (found in OCI Console > Administration > Tenancy Details)
+tenancy_ocid = ""
+
+# Target compartment OCID where resources will be created
+targetCompartment = ""
+
+# -----------------------------------------------------------------------------
+# Availability Domain Configuration
+# -----------------------------------------------------------------------------
+# Primary availability domain for your resources
+ad = ""
+
+# Controller availability domain (can be same as 'ad' or different)
+controller_ad = ""
+
+# -----------------------------------------------------------------------------
+# SSH Key Configuration
+# -----------------------------------------------------------------------------
+# Path to your public SSH key file (e.g., "~/.ssh/id_rsa.pub")
+# This key will be used for accessing all instances
+ssh_key = ""
+
+# -----------------------------------------------------------------------------
+# Storage Configuration
+# -----------------------------------------------------------------------------
+# Controller boot volume size in GB (minimum recommended: 50)
+controller_boot_volume_size = 50
+
+# Whether to enable backup for controller boot volume (true/false)
+controller_boot_volume_backup = true
+
+# -----------------------------------------------------------------------------
+# Open OnDemand (OOD) Configuration
+# -----------------------------------------------------------------------------
+# Email address for the OOD user account
+ood_user_email = ""
+
+# Password for the OOD user account
+ood_user_password = ""
+
+# =============================================================================
+# Optional Variables (with defaults) - Uncomment and modify as needed
+# =============================================================================
+
+# # Cluster Configuration
+# cluster_name = "my-hpc-cluster"
+# node_count = 2
+# 
+# # Instance Shapes
+# controller_shape = "VM.Standard2.4"
+# cluster_network_shape = "BM.HPC2.36"
+# instance_pool_shape = "VM.Standard2.4"
+# 
+# # Network Configuration
+# vcn_subnet = "172.16.0.0/21"
+# public_subnet = "172.16.0.0/24"
+# private_subnet = "172.16.4.0/22"
+# rdma_subnet = "192.168.0.0/16"
+# 
+# # Login Node Configuration
+# login_node = true
+# login_shape = "VM.Standard2.4"
+# login_boot_volume_size = 50
+# 
+# # Monitoring Configuration
+# monitoring_node = false
+# monitoring_shape = "VM.Standard2.4"
+# monitoring_boot_volume_size = 50
+# 
+# # SLURM Configuration
+# slurm = false
+# slurm_ha = false
+# 
+# # Storage Options
+# use_cluster_nfs = true
+# use_scratch_nfs = false
+# home_nfs = true
+# 
+# # Marketplace Image Configuration
+# use_marketplace_image = true
+# marketplace_listing = "HPC_OL8"
+# 
+# # Security Configuration
+# ssh_cidr = "0.0.0.0/0"  # Restrict this to your IP range for better security
+# 
+# # IDCS Configuration (for OOD)
+# use_existing_idcs = true
+# existing_domain_ocid = ""  # Required if use_existing_idcs = true
